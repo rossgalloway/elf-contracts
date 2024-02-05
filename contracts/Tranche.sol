@@ -17,6 +17,8 @@ contract Tranche is ERC20Permit, ITranche {
     IWrappedPosition public immutable position;
     IERC20 public immutable override underlying;
     uint8 internal immutable _underlyingDecimals;
+    // The donation address must be capable of calling functions on this contract
+    address public immutable donationAddress; // YFG added this line
 
     // The outstanding amount of underlying which
     // can be redeemed from the contract from Principal Tokens
@@ -46,11 +48,12 @@ contract Tranche is ERC20Permit, ITranche {
             address wpAddress,
             uint256 expiration,
             IInterestToken interestTokenTemp,
+            address donationAddressTemp, // YFG added this line
             // solhint-disable-next-line
             address unused
         ) = trancheFactory.getData();
         interestToken = interestTokenTemp;
-
+        donationAddress = donationAddressTemp; // YFG added this line
         IWrappedPosition wpContract = IWrappedPosition(wpAddress);
         position = wpContract;
 
@@ -76,6 +79,7 @@ contract Tranche is ERC20Permit, ITranche {
             uint256 expiration,
             // solhint-disable-next-line
             IInterestToken unused,
+            address unused2, // YFG added this line
             address dateLib
         ) = trancheFactory.getData();
 
@@ -156,6 +160,7 @@ contract Tranche is ERC20Permit, ITranche {
     /// @return the amount of principal and yield token minted as (pt, yt)
     /// @dev WARNING - The call which funds this method MUST be in the same transaction
     //                 as the call to this method or you risk loss of funds
+    // YFG - changed the interest token mint destination to the donation address
     function prefundedDeposit(address _destination)
         public
         override
@@ -206,9 +211,10 @@ contract Tranche is ERC20Permit, ITranche {
             uint128(_valueSupplied + adjustedAmount),
             uint128(_interestSupply + usedUnderlying)
         );
-        // We mint interest token for each underlying provided
-        interestToken.mint(_destination, usedUnderlying);
+        // We mint interest token for each underlying provided and send to the donation address
+        interestToken.mint(donationAddress, usedUnderlying); //YFG modified this line
         // We mint principal token discounted by the accumulated interest.
+        // principal tokens are sent back to the minter as expected
         _mint(_destination, adjustedAmount);
         // We return the number of principal token and yield token
         return (adjustedAmount, usedUnderlying);
@@ -318,12 +324,13 @@ contract Tranche is ERC20Permit, ITranche {
     /**
     @notice Burn interest tokens to withdraw underlying tokens.
     @param _amount The number of interest tokens to burn.
-    @param _destination The address to send the result to
     @return The number of underlying token released
     @dev Due to slippage the redemption may receive up to _SLIPPAGE_BP less
          in output compared to the floating rate.
      */
-    function withdrawInterest(uint256 _amount, address _destination)
+    // YFG - removed destination as it is going to the donation address hardcoded into the contract
+    // this must be called by the address that has the interest tokens
+    function withdrawInterest(uint256 _amount)
         external
         override
         returns (uint256)
@@ -353,7 +360,7 @@ contract Tranche is ERC20Permit, ITranche {
         interestSupply = uint128(_interestSupply - _amount);
         // Redeem position tokens for underlying
         (uint256 redemption, ) = position.withdrawUnderlying(
-            _destination,
+            donationAddress, // YFG - changed this to donation address
             redemptionAmount,
             minRedemption
         );

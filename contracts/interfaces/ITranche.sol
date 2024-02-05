@@ -17,9 +17,9 @@ interface ITranche is IERC20Permit {
         external
         returns (uint256);
 
-    function withdrawInterest(uint256 _amount, address _destination)
-        external
-        returns (uint256);
+    function withdrawInterest(
+        uint256 _amount // YFG - removed destination
+    ) external returns (uint256);
 
     function interestToken() external view returns (IInterestToken);
 

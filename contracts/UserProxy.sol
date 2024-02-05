@@ -196,8 +196,8 @@ contract UserProxy is Authorizable {
             yieldToken.transferFrom(msg.sender, address(this), _amountYT);
             // Withdraw that YT
             wethReceivedYt = derivedTranche.withdrawInterest(
-                _amountYT,
-                address(this)
+                _amountYT
+                // YFG - removed destination as this is hardcoded to the donation address
             );
         }
 

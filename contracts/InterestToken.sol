@@ -16,6 +16,7 @@ contract InterestToken is ERC20Permit, IInterestToken {
     /// @param _strategySymbol The symbol of the associated WrappedPosition contract
     /// @param _timestamp The unlock time on the tranche
     /// @param _decimals The decimal encoding for this token
+    // TODO: YFG - do we need to modify this to include the donation address or organization name donated to?
     constructor(
         address _tranche,
         string memory _strategySymbol,

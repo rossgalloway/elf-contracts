@@ -17,13 +17,15 @@ contract TrancheFactory {
     /// @param expiration the expiration time of the tranche
     event TrancheCreated(
         address indexed trancheAddress,
-        address indexed wpAddress,
-        uint256 indexed expiration
+        uint256 indexed expiration,
+        address indexed donationAddress, // YFG added this parameter
+        address wpAddress // YFG removed `indexed` as there can only be three indexed parameters
     );
 
     IInterestTokenFactory internal immutable _interestTokenFactory;
     address internal _tempWpAddress;
     uint256 internal _tempExpiration;
+    address internal _tempDonationAddress; // YFG added this line
     IInterestToken internal _tempInterestToken;
     bytes32 public constant TRANCHE_CREATION_HASH =
         keccak256(type(Tranche).creationCode);
@@ -41,15 +43,22 @@ contract TrancheFactory {
     /// @param _expiration The expiration timestamp for the tranche.
     /// @param _wpAddress Address of the Wrapped Position contract the tranche will use.
     /// @return The deployed Tranche contract.
-    function deployTranche(uint256 _expiration, address _wpAddress)
-        public
-        returns (Tranche)
-    {
+    // YFG - added donation address as a parameter and are using it in the salt calculation for create2
+    function deployTranche(
+        uint256 _expiration,
+        address _wpAddress,
+        address _donationAddress //added donation address as a parameter
+    ) public returns (Tranche) {
         _tempWpAddress = _wpAddress;
         _tempExpiration = _expiration;
+        _tempDonationAddress = _donationAddress; // YFG - added this line
 
         IWrappedPosition wpContract = IWrappedPosition(_wpAddress);
-        bytes32 salt = keccak256(abi.encodePacked(_wpAddress, _expiration));
+        // YFG - added the donation address to the salt calc. Create2 should now create unique addresses for each tranche
+        // based on the vault, expiration, and donation address
+        bytes32 salt = keccak256(
+            abi.encodePacked(_wpAddress, _expiration, _donationAddress)
+        ); //added donation address
         string memory wpSymbol = wpContract.symbol();
         IERC20 underlying = wpContract.token();
         uint8 underlyingDecimals = underlying.decimals();
@@ -78,7 +87,12 @@ contract TrancheFactory {
         );
 
         Tranche tranche = new Tranche{ salt: salt }();
-        emit TrancheCreated(address(tranche), _wpAddress, _expiration);
+        emit TrancheCreated(
+            address(tranche),
+            _expiration,
+            _donationAddress,
+            _wpAddress
+        );
         require(
             address(tranche) == predictedAddress,
             "CREATE2 address mismatch"
@@ -88,6 +102,7 @@ contract TrancheFactory {
         delete _tempWpAddress;
         delete _tempExpiration;
         delete _tempInterestToken;
+        delete _tempDonationAddress; // YFG - added this line
 
         return tranche;
     }
@@ -97,7 +112,7 @@ contract TrancheFactory {
     /// The return data is used for Tranche initialization. Using this, the Tranche avoids
     /// constructor arguments which can make the Tranche bytecode needed for create2 address
     /// derivation non-constant.
-    /// @return Wrapped Position contract address, expiration timestamp, and interest token contract
+    /// @return Wrapped Position contract address, expiration timestamp, interest token contract, and donation address
     function getData()
         external
         view
@@ -105,6 +120,7 @@ contract TrancheFactory {
             address,
             uint256,
             IInterestToken,
+            address,
             address
         )
     {
@@ -112,6 +128,7 @@ contract TrancheFactory {
             _tempWpAddress,
             _tempExpiration,
             _tempInterestToken,
+            _tempDonationAddress, // YFG - added this line
             _dateLibrary
         );
     }

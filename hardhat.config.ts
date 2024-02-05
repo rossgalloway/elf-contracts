@@ -20,16 +20,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: "0.7.1",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 10000,
-          },
-        },
-      },
-      {
-        version: "0.8.1",
+        version: "0.8.4",
         settings: {
           optimizer: {
             enabled: true,
@@ -38,36 +29,6 @@ const config: HardhatUserConfig = {
         },
       },
     ],
-    overrides: {
-      "contracts/balancer-core-v2/vault/Vault.sol": {
-        version: "0.7.1",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 400,
-          },
-        },
-      },
-      "contracts/balancer-core-v2/pools/weighted/WeightedPoolFactory.sol": {
-        version: "0.7.1",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 800,
-          },
-        },
-      },
-      "contracts/balancer-core-v2/pools/weighted/WeightedPool2TokensFactory.sol":
-        {
-          version: "0.7.1",
-          settings: {
-            optimizer: {
-              enabled: true,
-              runs: 800,
-            },
-          },
-        },
-    },
   },
   mocha: { timeout: 0 },
   networks: {
