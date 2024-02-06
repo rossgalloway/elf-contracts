@@ -42,6 +42,7 @@ contract TrancheFactory {
     /// @notice Deploy a new Tranche contract.
     /// @param _expiration The expiration timestamp for the tranche.
     /// @param _wpAddress Address of the Wrapped Position contract the tranche will use.
+    /// @param _donationAddress The address of the organization to donate yield to
     /// @return The deployed Tranche contract.
     // YFG - added donation address as a parameter and are using it in the salt calculation for create2
     function deployTranche(
@@ -57,8 +58,8 @@ contract TrancheFactory {
         // YFG - added the donation address to the salt calc. Create2 should now create unique addresses for each tranche
         // based on the vault, expiration, and donation address
         bytes32 salt = keccak256(
-            abi.encodePacked(_wpAddress, _expiration, _donationAddress)
-        ); //added donation address
+            abi.encodePacked(_wpAddress, _expiration, _donationAddress) // YFG - added donation address
+        );
         string memory wpSymbol = wpContract.symbol();
         IERC20 underlying = wpContract.token();
         uint8 underlyingDecimals = underlying.decimals();

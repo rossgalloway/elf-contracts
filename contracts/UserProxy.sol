@@ -110,6 +110,7 @@ contract UserProxy is Authorizable {
     ///                   This token should revert in the event of a transfer failure.
     /// @param _expiration The expiration time of the Tranche contract
     /// @param _position The contract which manages pooled deposits
+    /// @param _donationAddress The address of the organization to donate yield to
     /// @param _permitCallData Encoded array of permit calls to make prior to minting
     ///                        the data should be encoded with abi.encode(data, "PermitData[]")
     ///                        each PermitData struct provided will be executed as a call.
@@ -122,6 +123,7 @@ contract UserProxy is Authorizable {
         IERC20 _underlying,
         uint256 _expiration,
         address _position,
+        address _donationAddress, // YFG - added donation address
         PermitData[] calldata _permitCallData
     )
         external
@@ -146,7 +148,11 @@ contract UserProxy is Authorizable {
         }
 
         // Proceed to internal minting steps
-        (uint256 ptMinted, uint256 ytMinted) = _mint(_expiration, _position);
+        (uint256 ptMinted, uint256 ytMinted) = _mint(
+            _expiration,
+            _position,
+            _donationAddress
+        ); // YFG - added donation address
         // This sanity check ensure that at least as much was minted as was transferred
         require(ytMinted >= _amount, "Not enough minted");
         return (ptMinted, ytMinted);
@@ -157,6 +163,7 @@ contract UserProxy is Authorizable {
     ///      for those who want to do one tx instead of two
     /// @param _expiration The tranche expiration time
     /// @param _position The contract which interacts with the yield bearing strategy
+    /// @param _donationAddress The address of the organization to donate to
     /// @param _amountPT The amount of principal token to withdraw
     /// @param _amountYT The amount of yield token to withdraw.
     /// @param _permitCallData Encoded array of permit calls to make prior to withdrawing,
@@ -165,6 +172,7 @@ contract UserProxy is Authorizable {
     function withdrawWeth(
         uint256 _expiration,
         address _position,
+        address _donationAddress, // YFG - added this line
         uint256 _amountPT,
         uint256 _amountYT,
         PermitData[] calldata _permitCallData
@@ -174,7 +182,12 @@ contract UserProxy is Authorizable {
         // Only allow access if the user is actually attempting to withdraw
         require(((_amountPT != 0) || (_amountYT != 0)), "Invalid withdraw");
         // Because of create2 we know this code is exactly what is expected.
-        ITranche derivedTranche = _deriveTranche(_position, _expiration);
+        // YFG - added donation address to arguments
+        ITranche derivedTranche = _deriveTranche(
+            _position,
+            _expiration,
+            _donationAddress
+        );
 
         uint256 wethReceivedPt = 0;
         uint256 wethReceivedYt = 0;
@@ -225,13 +238,20 @@ contract UserProxy is Authorizable {
     ///      the contract has already transferred to WrappedPosition contract
     /// @param _expiration The tranche expiration time
     /// @param _position The contract which interacts with the yield bearing strategy
+    /// @param _donationAddress The address of the organization to donate to
     /// @return the principal token yield token returned
-    function _mint(uint256 _expiration, address _position)
-        internal
-        returns (uint256, uint256)
-    {
+    // YFG - added donation address
+    function _mint(
+        uint256 _expiration,
+        address _position,
+        address _donationAddress
+    ) internal returns (uint256, uint256) {
         // Use create2 to derive the tranche contract
-        ITranche tranche = _deriveTranche(address(_position), _expiration);
+        ITranche tranche = _deriveTranche(
+            address(_position),
+            _expiration,
+            _donationAddress
+        ); // YFG - added donation address
         // Move funds into the Tranche contract
         // it will credit the msg.sender with the new tokens
         return tranche.prefundedDeposit(msg.sender);
@@ -241,14 +261,17 @@ contract UserProxy is Authorizable {
     ///      address of the Tranche contract from a wrapped position contract and expiration
     /// @param _position The wrapped position contract address
     /// @param _expiration The expiration time of the tranche
+    /// @param _donationAddress The address of the organization to donate to
     /// @return The derived Tranche contract
-    function _deriveTranche(address _position, uint256 _expiration)
-        internal
-        view
-        virtual
-        returns (ITranche)
-    {
-        bytes32 salt = keccak256(abi.encodePacked(_position, _expiration));
+    // YFG - added donation address
+    function _deriveTranche(
+        address _position,
+        uint256 _expiration,
+        address _donationAddress
+    ) internal view virtual returns (ITranche) {
+        bytes32 salt = keccak256(
+            abi.encodePacked(_position, _expiration, _donationAddress)
+        ); // YFG - added donation address
         bytes32 addressBytes = keccak256(
             abi.encodePacked(
                 bytes1(0xff),
