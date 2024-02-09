@@ -13,11 +13,11 @@ contract TestUserProxy is UserProxy {
     ) UserProxy(IWETH(_weth), _trancheFactory, _trancheBytecodeHash) {} // solhint-disable-line no-empty-blocks
 
     // solhint-disable-next-line private-vars-leading-underscore
-    function deriveTranche(address position, uint256 expiration)
-        public
-        view
-        returns (ITranche)
-    {
-        return _deriveTranche(position, expiration);
+    function deriveTranche(
+        address position,
+        uint256 expiration,
+        address donationAddress
+    ) public view returns (ITranche) {
+        return _deriveTranche(position, expiration, donationAddress);
     }
 }

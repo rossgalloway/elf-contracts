@@ -108,8 +108,11 @@ abstract contract WrappedPosition is ERC20Permit, IWrappedPosition {
         )
     {
         // Calls our internal deposit function
+        // Deposits into yearn vault and returns the number of shares minted
+        // and the amount of the underlying asset spent to get mint shares
         (uint256 shares, uint256 usedUnderlying) = _deposit();
 
+        // yv<asset> balance of the tranche contract
         uint256 balanceBefore = balanceOf[_destination];
 
         // Mint them internal ERC20 tokens corresponding to the deposit
