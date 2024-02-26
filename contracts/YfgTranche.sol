@@ -3,17 +3,17 @@ pragma solidity ^0.8.0;
 
 import "./interfaces/IERC20.sol";
 import "./interfaces/IWrappedPosition.sol";
-import "./interfaces/ITranche.sol";
-import "./interfaces/ITrancheFactory.sol";
-import "./interfaces/IInterestToken.sol";
+import "./interfaces/IYfgTranche.sol";
+import "./interfaces/IYfgTrancheFactory.sol";
 
 import "./libraries/ERC20Permit.sol";
 import "./libraries/DateString.sol";
 
-/// @author Element Finance
-/// @title Tranche
-contract Tranche is ERC20Permit, ITranche {
-    IInterestToken public immutable override interestToken;
+/// @author Element Finance && SpecificArchitectures
+/// @title YfgTranche
+contract YfgTranche is ERC20Permit, IYfgTranche {
+    // YFG - removed interest token
+    // IInterestToken public immutable override interestToken;
     IWrappedPosition public immutable position;
     IERC20 public immutable override underlying;
     uint8 internal immutable _underlyingDecimals;
@@ -23,9 +23,9 @@ contract Tranche is ERC20Permit, ITranche {
     // The outstanding amount of underlying which
     // can be redeemed from the contract from Principal Tokens
     // NOTE - we use smaller sizes so that they can be one storage slot
-    uint128 public valueSupplied;
+    uint128 public interestEarned; // YFG - changed this to interestEarned
     // The total supply of interest tokens
-    uint128 public override interestSupply;
+    uint128 public principalSupplied; // YFG - changed this to principalSupplied
     // The timestamp when tokens can be redeemed.
     uint256 public immutable override unlockTimestamp;
     // The amount of slippage allowed on the Principal token redemption [0.1 basis points]
@@ -37,22 +37,23 @@ contract Tranche is ERC20Permit, ITranche {
     uint256 public speedbump;
     // Const which is 48 hours in seconds
     uint256 internal constant _FORTY_EIGHT_HOURS = 172800;
+    bool public isWithdrawable;
     // An event to listen for when negative interest withdraw are triggered
     event SpeedBumpHit(uint256 timestamp);
+    event CanWithdraw(bool isWithdrawable, uint256 redemptionAmount);
 
     /// @notice Constructs this contract
     constructor() ERC20Permit("Element Principal Token ", "eP") {
         // Assume the caller is the Tranche factory.
-        ITrancheFactory trancheFactory = ITrancheFactory(msg.sender);
+        IYfgTrancheFactory trancheFactory = IYfgTrancheFactory(msg.sender);
         (
             address wpAddress,
             uint256 expiration,
-            IInterestToken interestTokenTemp,
             address donationAddressTemp, // YFG added this line
             // solhint-disable-next-line
             address unused
-        ) = trancheFactory.getData();
-        interestToken = interestTokenTemp;
+        ) = trancheFactory.getData(); // TODO: need to change factory contract
+        // interestToken = interestTokenTemp; // YFG - removed interest Token
         donationAddress = donationAddressTemp; // YFG added this line
         IWrappedPosition wpContract = IWrappedPosition(wpAddress);
         position = wpContract;
@@ -73,13 +74,12 @@ contract Tranche is ERC20Permit, ITranche {
     function _extraConstruction() internal override {
         // Assume the caller is the Tranche factory and that this is called from constructor
         // We have to do this double load because of the lack of flexibility in constructor ordering
-        ITrancheFactory trancheFactory = ITrancheFactory(msg.sender);
+        IYfgTrancheFactory trancheFactory = IYfgTrancheFactory(msg.sender);
         (
             address wpAddress,
             uint256 expiration,
             // solhint-disable-next-line
-            IInterestToken unused,
-            address unused2, // YFG added this line
+            address unused2,
             address dateLib
         ) = trancheFactory.getData();
 
@@ -128,7 +128,7 @@ contract Tranche is ERC20Permit, ITranche {
     /// @notice An aliasing of the getter for valueSupplied to improve ERC20 compatibility
     /// @return The number of principal tokens which exist.
     function totalSupply() external view returns (uint256) {
-        return uint256(valueSupplied);
+        return uint256(principalSupplied); //YFG changed this line from valueSupplied
     }
 
     /**
@@ -138,12 +138,12 @@ contract Tranche is ERC20Permit, ITranche {
             reduced in order to pay for the accrued interest.
     @param _amount The amount of underlying to deposit
     @param _destination The address to mint to
-    @return The amount of principal and yield token minted as (pt, yt)
+    @return The amount of principal tokens minted 
      */
     function deposit(uint256 _amount, address _destination)
         external
         override
-        returns (uint256, uint256)
+        returns (uint256)
     {
         // Transfer the underlying to be wrapped into the position
         underlying.transferFrom(msg.sender, address(position), _amount);
@@ -157,70 +157,45 @@ contract Tranche is ERC20Permit, ITranche {
     ///         only be called when a transfer has already been made to
     ///         the wrapped position contract of the underlying
     /// @param _destination The address to mint to
-    /// @return the amount of principal and yield token minted as (pt, yt)
+    /// @return the amount of principal tokens minted
     /// @dev WARNING - The call which funds this method MUST be in the same transaction
     //                 as the call to this method or you risk loss of funds
-    // YFG - changed the interest token mint destination to the donation address
+    // YFG - removed the minting of interest tokens and adjustment value of principal tokens minted
     function prefundedDeposit(address _destination)
         public
         override
-        returns (uint256, uint256)
+        returns (uint256)
     {
-        // We check that this it is possible to deposit
+        // We check that it is possible to deposit
         require(block.timestamp < unlockTimestamp, "expired");
         // Since the wrapped position contract holds a balance we use the prefunded deposit method
         (
             uint256 shares,
-            uint256 usedUnderlying,
-            uint256 balanceBefore
+            uint256 underlyingDeposited,
+            uint256 yvBalanceBefore
         ) = position.prefundedDeposit(address(this));
-        // The implied current value of the holding of this contract in underlying
-        // is the balanceBefore*(usedUnderlying/shares) since (usedUnderlying/shares)
-        // is underlying per share and balanceBefore is the balance of this contract
-        // in position tokens before this deposit.
-        uint256 holdingsValue = balanceBefore * (usedUnderlying / shares);
-        // This formula is inputUnderlying - inputUnderlying*interestPerUnderlying
-        // Accumulated interest has its value in the interest tokens so we have to mint less
-        // principal tokens to account for that.
-        // NOTE - If a pool has more than 100% interest in the period this will revert on underflow
-        //        The user cannot discount the principal token enough to pay for the outstanding interest accrued.
-        (uint256 _valueSupplied, uint256 _interestSupply) = (
-            uint256(valueSupplied),
-            uint256(interestSupply)
-        );
+
+        uint256 holdingsValue = yvBalanceBefore *
+            (underlyingDeposited / shares);
+
+        // principal supply is the amount of underlying deposited so far
+        uint256 _principalSupplied = uint256(principalSupplied);
+
         // We block deposits in negative interest rate regimes
         // The +2 allows for very small rounding errors which occur when
         // depositing into a tranche which is attached to a wp which has
         // accrued interest but the tranche has not yet accrued interest
         // and the first deposit into the tranche is substantially smaller
         // than following ones.
-        require(_valueSupplied <= holdingsValue + 2, "E:NEG_INT");
+        require(_principalSupplied <= holdingsValue + 2, "E:NEG_INT");
 
-        uint256 adjustedAmount;
-        // Have to split on the initialization case and negative interest case
-        if (_valueSupplied > 0 && holdingsValue > _valueSupplied) {
-            adjustedAmount =
-                usedUnderlying -
-                // (current value minus the value of principal tokens supplied) = value of interest
-                // divided by the interest token supply = interest per underlying
-                // multiplied by the amount of underlying supplied
-                ((holdingsValue - _valueSupplied) * usedUnderlying) /
-                _interestSupply;
-        } else {
-            adjustedAmount = usedUnderlying;
-        }
-        // We record the new input of reclaimable underlying
-        (valueSupplied, interestSupply) = (
-            uint128(_valueSupplied + adjustedAmount),
-            uint128(_interestSupply + usedUnderlying)
-        );
-        // We mint interest token for each underlying provided and send to the donation address
-        interestToken.mint(donationAddress, usedUnderlying); //YFG modified this line
-        // We mint principal token discounted by the accumulated interest.
-        // principal tokens are sent back to the minter as expected
-        _mint(_destination, adjustedAmount);
-        // We return the number of principal token and yield token
-        return (adjustedAmount, usedUnderlying);
+        // update the value of the total underlying deposited
+        principalSupplied = uint128(_principalSupplied + underlyingDeposited);
+
+        // Mint the principal tokens to the destination
+        _mint(_destination, underlyingDeposited);
+
+        return (underlyingDeposited);
     }
 
     /**
@@ -242,12 +217,14 @@ contract Tranche is ERC20Permit, ITranche {
     {
         // No redemptions before unlock
         require(block.timestamp >= unlockTimestamp, "E:Not Expired");
+        // isWithdrawable must be set to true by calling expireTranche
+        require(isWithdrawable, "E:ExpireTranche not yet called");
         uint256 localSpeedbump = speedbump;
         uint256 withdrawAmount = _amount;
-        uint256 localSupply = uint256(valueSupplied);
+        uint256 localSupply = uint256(principalSupplied);
         // If speedbump has been hit
         if (localSpeedbump != 0) {
-            // Load the assets we have in this vault
+            // Load the underlying asset balance we have in this vault
             uint256 holdings = position.balanceOfUnderlying(address(this));
             // If we check and the interest rate is no longer negative then we
             // allow normal 1 to 1 withdraws [even if the speedbump was hit less
@@ -269,12 +246,11 @@ contract Tranche is ERC20Permit, ITranche {
                 );
             }
         }
-        // If the speedbump == 0 it's never been hit so we don't need
-        // to change the withdraw rate.
+        // If the speedbump == 0 it's never been hit so we don't need to change the withdraw rate.
         // Burn from the sender
         _burn(msg.sender, _amount);
-        // Remove these principal token from the interest calculations for future interest redemptions
-        valueSupplied = uint128(localSupply) - uint128(_amount);
+        // Remove these principal token from the state variable for future withdrawals
+        principalSupplied = uint128(localSupply) - uint128(_amount);
         // Load the share balance of the vault before withdrawing [gas note - both the smart
         // contract and share value is warmed so this is actually quite a cheap lookup]
         uint256 shareBalanceBefore = position.balanceOf(address(this));
@@ -311,7 +287,7 @@ contract Tranche is ERC20Permit, ITranche {
         // We require that the total holds are less than the supply of
         // principal token we need to redeem
         uint256 totalHoldings = position.balanceOfUnderlying(address(this));
-        if (totalHoldings < valueSupplied) {
+        if (totalHoldings < principalSupplied) {
             // We emit a notification so that if a speedbump is hit the community
             // can investigate.
             // Note - this is a form of defense mechanism because any flash loan
@@ -326,48 +302,35 @@ contract Tranche is ERC20Permit, ITranche {
     }
 
     /**
-    @notice Burn interest tokens to withdraw underlying tokens.
-    @param _amount The number of interest tokens to burn.
-    @return The number of underlying token released
-    @dev Due to slippage the redemption may receive up to _SLIPPAGE_BP less
-         in output compared to the floating rate.
+     * @notice This function allows the owner to withdraw the underlying assets
+     * calling expire will set the share price and send the interest portion of
+     * the shares to beneficiary address
      */
-    // YFG - removed destination as it is going to the donation address hardcoded into the contract
-    // this must be called by the address that has the interest tokens
-    function withdrawInterest(uint256 _amount)
-        external
-        override
-        returns (uint256)
-    {
+    function expireTranche() external returns (uint256) {
+        // require that the tranche has expired
         require(block.timestamp >= unlockTimestamp, "E:Not Expired");
-        // Burn tokens from the sender
-        interestToken.burn(msg.sender, _amount);
-        // Load the underlying value of this contract
-        uint256 underlyingValueLocked = position.balanceOfUnderlying(
-            address(this)
-        );
-        // Load a stack variable to avoid future sloads
-        (uint256 _valueSupplied, uint256 _interestSupply) = (
-            uint256(valueSupplied),
-            uint256(interestSupply)
-        );
-        // Interest is value locked minus current value
-        uint256 interest = underlyingValueLocked > _valueSupplied
-            ? underlyingValueLocked - _valueSupplied
-            : 0;
-        // The redemption amount is the interest per token times the amount
-        uint256 redemptionAmount = (interest * _amount) / _interestSupply;
-        uint256 minRedemption = redemptionAmount -
-            (redemptionAmount * _SLIPPAGE_BP) /
-            1e18;
-        // Store that we reduced the supply
-        interestSupply = uint128(_interestSupply - _amount);
-        // Redeem position tokens for underlying
-        (uint256 redemption, ) = position.withdrawUnderlying(
-            donationAddress, // YFG - changed this to donation address
-            redemptionAmount,
-            minRedemption
-        );
-        return (redemption);
+        // get underlying balance of underlying owned by this contract
+        uint256 totalHoldings = position.balanceOfUnderlying(address(this));
+        // get the value in underlying of the interest earned
+        uint256 interestEarnedValue = totalHoldings -
+            uint256(principalSupplied);
+        uint256 redemptionAmount;
+        //check that the interest earned is greater than 0
+        if (interestEarnedValue > 0) {
+            // set the interestEarned to the value of the interest earned
+            interestEarned = uint128(interestEarnedValue);
+            uint256 minRedemption = interestEarnedValue -
+                (interestEarnedValue * _SLIPPAGE_BP) /
+                1e18;
+            (redemptionAmount, ) = position.withdrawUnderlying(
+                donationAddress,
+                interestEarnedValue,
+                minRedemption
+            );
+        }
+        emit CanWithdraw(true, redemptionAmount);
+        isWithdrawable = true;
+
+        return (redemptionAmount);
     }
 }

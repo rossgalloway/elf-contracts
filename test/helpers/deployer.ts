@@ -3,37 +3,38 @@ import { ethers } from "hardhat";
 import "module-alias/register";
 import { DateString__factory } from "typechain/factories/DateString__factory";
 import { IERC20__factory } from "typechain/factories/IERC20__factory";
-import { InterestTokenFactory__factory } from "typechain/factories/InterestTokenFactory__factory";
-import { InterestToken__factory } from "typechain/factories/InterestToken__factory";
+// import { InterestTokenFactory__factory } from "typechain/factories/InterestTokenFactory__factory";
+// import { InterestToken__factory } from "typechain/factories/InterestToken__factory";
 import { IWETH__factory } from "typechain/factories/IWETH__factory";
 import { IYearnVault__factory } from "typechain/factories/IYearnVault__factory";
 import { TestERC20__factory } from "typechain/factories/TestERC20__factory";
-import { TestUserProxy__factory } from "typechain/factories/TestUserProxy__factory";
-import { TestWrappedPosition__factory } from "typechain/factories/TestWrappedPosition__factory";
-import { TestYVault__factory } from "typechain/factories/TestYVault__factory";
-import { TrancheFactory__factory } from "typechain/factories/TrancheFactory__factory";
-import { Tranche__factory } from "typechain/factories/Tranche__factory";
+import { YfgUserProxy__factory } from "typechain/factories/YfgUserProxy__factory";
+// import { TestUserProxy__factory } from "typechain/factories/TestUserProxy__factory";
+import { WrappedPosition__factory } from "typechain/factories/WrappedPosition__factory";
+import { TestYVaultV4__factory } from "typechain/factories/TestYVaultV4__factory";
+import { YfgTrancheFactory__factory } from "typechain/factories/YfgTrancheFactory__factory";
+import { YfgTranche__factory } from "typechain/factories/YfgTranche__factory";
 import { YVaultAssetProxy__factory } from "typechain/factories/YVaultAssetProxy__factory";
 import { ZapTrancheHop__factory } from "typechain/factories/ZapTrancheHop__factory";
 import { ZapYearnShares__factory } from "typechain/factories/ZapYearnShares__factory";
 import { IERC20 } from "typechain/IERC20";
-import { InterestToken } from "typechain/InterestToken";
+// import { InterestToken } from "typechain/InterestToken";
 import { IWETH } from "typechain/IWETH";
 import { IYearnVault } from "typechain/IYearnVault";
 import { TestERC20 } from "typechain/TestERC20";
-import { TestUserProxy } from "typechain/TestUserProxy";
-import { TestWrappedPosition } from "typechain/TestWrappedPosition";
-import { TestYVault } from "typechain/TestYVault";
-import { Tranche } from "typechain/Tranche";
-import { TrancheFactory } from "typechain/TrancheFactory";
+import { YfgUserProxy } from "typechain/YfgUserProxy";
+import { WrappedPosition } from "typechain/WrappedPosition";
+import { TestYVaultV4 } from "typechain/TestYVaultV4";
+import { YfgTranche } from "typechain/YfgTranche";
+import { YfgTrancheFactory } from "typechain/YfgTrancheFactory";
 import { YVaultAssetProxy } from "typechain/YVaultAssetProxy";
 import { ZapTrancheHop } from "typechain/ZapTrancheHop";
 import { ZapYearnShares } from "typechain/ZapYearnShares";
-import data from "../../artifacts/contracts/Tranche.sol/Tranche.json";
-import { CompoundAssetProxy__factory } from "typechain/factories/CompoundAssetProxy__factory";
-import { CTokenInterface__factory } from "typechain/factories/CTokenInterface__factory";
-import { CompoundAssetProxy } from "typechain/CompoundAssetProxy";
-import { CTokenInterface } from "typechain/CTokenInterface";
+import data from "../../artifacts/contracts/YfgTranche.sol/YfgTranche.json";
+// import { CompoundAssetProxy__factory } from "typechain/factories/CompoundAssetProxy__factory";
+// import { CTokenInterface__factory } from "typechain/factories/CTokenInterface__factory";
+// import { CompoundAssetProxy } from "typechain/CompoundAssetProxy";
+// import { CTokenInterface } from "typechain/CTokenInterface";
 
 export interface FixtureInterface {
   signer: Signer;
@@ -46,14 +47,14 @@ export interface FixtureInterface {
   trancheFactory: TrancheFactory;
 }
 
-export interface CFixtureInterface {
-  signer: Signer;
-  position: CompoundAssetProxy;
-  cusdc: CTokenInterface;
-  usdc: IERC20;
-  comp: IERC20;
-  proxy: TestUserProxy;
-}
+// export interface CFixtureInterface {
+//   signer: Signer;
+//   position: CompoundAssetProxy;
+//   cusdc: CTokenInterface;
+//   usdc: IERC20;
+//   comp: IERC20;
+//   proxy: TestUserProxy;
+// }
 
 export interface EthPoolMainnetInterface {
   signer: Signer;

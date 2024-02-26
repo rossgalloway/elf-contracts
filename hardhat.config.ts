@@ -11,12 +11,12 @@ import { HardhatUserConfig } from "hardhat/config";
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
-  typechain: {
-    outDir: "typechain/",
-    target: "ethers-v5",
-    alwaysGenerateOverloads: true,
-    externalArtifacts: ["externalArtifacts/*.json"],
-  },
+  // typechain: {
+  //   outDir: "typechain/",
+  //   target: "ethers-v5",
+  //   alwaysGenerateOverloads: true,
+  //   externalArtifacts: ["externalArtifacts/*.json"],
+  // },
   solidity: {
     compilers: [
       {
@@ -34,8 +34,8 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_MAINNET_API_KEY}`,
-        blockNumber: 11853372,
+        url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_MAINNET_API_KEY}`,
+        blockNumber: 19220239,
       },
       accounts: {
         accountsBalance: "100000000000000000000000", // 100000 ETH

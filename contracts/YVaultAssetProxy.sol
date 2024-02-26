@@ -70,6 +70,7 @@ contract YVaultAssetProxy is WrappedPosition, Authorizable {
         // Deposit and get the shares that were minted to this
         uint256 shares = vault.deposit(amount, address(this));
 
+        // TODO: better understand the migration process and how to handle this
         // If we have migrated our shares are no longer 1 - 1 with the vault shares
         if (conversionRate != 0) {
             // conversionRate is the fraction of yearnSharePrice1/yearnSharePrices2 at time of migration
